@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>지형·자동 배치 데모</title>
+<style>
+body{margin:0;background:#1b1d24;color:#eee;font-family:-apple-system,"Apple SD Gothic Neo",sans-serif;padding:16px}
+h1{font-size:18px;margin:0 0 4px}p.s{margin:0 0 10px;color:#9aa;font-size:13px}
+.bar{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}
+button{background:#2d3140;color:#eee;border:1px solid #444a5e;border-radius:8px;padding:6px 10px;font-size:13px;cursor:pointer}
+button.on{background:#3d6fd8;border-color:#6a95f0}
+canvas{width:100%;max-width:960px;display:block;image-rendering:pixelated;border-radius:8px;background:#9bd4f2}
+#log{font-size:13px;color:#cfe;min-height:20px;margin-top:6px}
+</style></head><body>
+<h1>지형 + 자동 배치 + 댓글 → 건물 데모</h1>
+<p class="s">나무·풀·강은 코드가 알아서 배치하고, 건물은 "댓글 한 건 = 데이터 한 줄"로 생겨요. 타일을 클릭하면 댓글로 건물을 신청한 것처럼 지어져요.</p>
+<div class="bar">
+<span>레이어:</span>
+<button id="l1" class="on">지형</button><button id="l2" class="on">자동 나무</button><button id="l3" class="on">건물</button>
+<span style="margin-left:12px">클릭 시 신청:</span>
+<button class="bt on" data-t="house">집</button><button class="bt" data-t="tower">고층</button><button class="bt" data-t="farm">텃밭</button><button class="bt" data-t="tent">병영</button>
+</div>
+<canvas id="c" width="480" height="300"></canvas>
+<div id="log">타일을 클릭해 보세요.</div>
+<script>
+const W=480,H=300,N=24,TW=20,TH=10,HZ=4,OX=W/2,OY=46;
+const cv=document.getElementById('c'),g=cv.getContext('2d');
+// ---------- 난수/노이즈 ----------
+function hash(x,y,s){let h=(x*374761393+y*668265263+s*1442695041)|0;h=(h^(h>>>13))*1274126177|0;return((h^(h>>>16))>>>0)/4294967295}
+function vnoise(x,y,s){const xi=Math.floor(x),yi=Math.floor(y),xf=x-xi,yf=y-yi;const u=xf*xf*(3-2*xf),v=yf*yf*(3-2*yf);
+ const a=hash(xi,yi,s),b=hash(xi+1,yi,s),c=hash(xi,yi+1,s),d=hash(xi+1,yi+1,s);return a+(b-a)*u+(c-a)*v+(a-b-c+d)*u*v}
+const fbm=(x,y,s)=>vnoise(x,y,s)*.6+vnoise(x*2,y*2,s+1)*.3+vnoise(x*4,y*4,s+2)*.1;
+// ---------- 지형 생성 ----------
+const T=[];// {type,h,forest}
+for(let y=0;y<N;y++){T[y]=[];for(let x=0;x<N;x++){
+  const e=fbm(x*.13,y*.13,3),f=fbm(x*.2,y*.2,9);
+  const rd=Math.abs(y-(12+5*Math.sin(x*.28)))<1.4;
+  let type='grass',h=1;
+  if(rd||e<.3)type='water',h=0;
+  else if(e>.7)type='rock',h=3;else if(e>.6)type='hill',h=2;
+  T[y][x]={type,h,forest:type==='grass'&&f>.56};
+}}
+for(let y=0;y<N;y++)for(let x=0;x<N;x++){const t=T[y][x];if(t.type!=='grass')continue;
+  for(const[dx,dy]of[[1,0],[-1,0],[0,1],[0,-1]]){const n=T[y+dy]&&T[y+dy][x+dx];if(n&&n.type==='water'){t.type='sand';t.forest=false}}}
+// 도로(가로 y=17, 세로 x=9) / 강 위는 다리
+for(let i=0;i<N;i++){for(const[x,y]of[[i,17],[9,i]]){const t=T[y][x];if(t.type==='water')t.type='bridge',t.h=1;else if(t.type!=='rock'&&t.type!=='hill'){t.type='road';t.forest=false}}}
+// ---------- 건물 데이터 (이게 "댓글 집계 결과" 에 해당) ----------
+const B=[];
+function canBuild(x,y){const t=T[y]&&T[y][x];return t&&(t.type==='grass'||t.type==='sand')&&!B.some(b=>b.x===x&&b.y===y)}
+function add(x,y,type,floors,who,anim=true){if(!canBuild(x,y))return false;T[y][x].forest=false;B.push({x,y,type,floors,who,t0:anim?performance.now():-1e9});return true}
+const seed=[['house',2],['house',2],['house',2],['house',2],['farm',1],['farm',1],['tent',1],['tower',6],['tower',9],['tower',5],['house',2],['house',2]];
+let k=0;for(const[t,f]of seed){for(let tries=0;tries<400;tries++){const x=(hash(k,tries,5)*N)|0,y=(hash(k,tries,6)*N)|0;if(Math.abs(x-9)<=2||Math.abs(y-17)<=2||true){if(add(x,y,t,f,'기존',false))break}}k++}
+// ---------- 그리기 ----------
+const COL={grass:['#7fc25a','#74b851'],sand:['#e8d9a0','#dccd92'],road:['#b9b2a4','#aaa497'],bridge:['#b88a58','#a97d4e'],water:['#58b4e8','#4aa5da'],hill:['#6fae52','#659f49'],rock:['#a9aab0','#9a9ba2']};
+const SIDE={grass:['#5e9b45','#4f8a3a'],sand:['#c9b878','#b9a86a'],road:['#8d877b','#7d776c'],bridge:['#8a6238','#7a5530'],water:['#3a8fc4','#3a8fc4'],hill:['#557f3f','#487035'],rock:['#7e7f86','#6f7077']};
+const sx=(x,y)=>OX+(x-y)*TW/2, sy=(x,y,h)=>OY+(x+y)*TH/2-h*HZ;
+function poly(pts,col){g.fillStyle=col;g.beginPath();g.moveTo(pts[0][0],pts[0][1]);for(let i=1;i<pts.length;i++)g.lineTo(pts[i][0],pts[i][1]);g.closePath();g.fill()}
+function diamond(x,y,h,col,sc=1){const cx=sx(x,y),cy=sy(x,y,h);poly([[cx,cy],[cx+TW/2*sc,cy+TH/2*sc],[cx,cy+TH*sc],[cx-TW/2*sc,cy+TH/2*sc]],col)}
+function sides(x,y,h,c1,c2,depth){const cx=sx(x,y),cy=sy(x,y,h),d=depth*HZ;
+ poly([[cx-TW/2,cy+TH/2],[cx,cy+TH],[cx,cy+TH+d],[cx-TW/2,cy+TH/2+d]],c1);poly([[cx+TW/2,cy+TH/2],[cx,cy+TH],[cx,cy+TH+d],[cx+TW/2,cy+TH/2+d]],c2)}
+function box(x,y,h,hp,c){const cx=sx(x,y),cy=sy(x,y,h)-hp,s=.8;const w=TW/2*s,t=TH/2*s;
+ poly([[cx-w,cy+TH/2],[cx,cy+TH/2+t],[cx,cy+TH/2+t+hp],[cx-w,cy+TH/2+hp]],c[1]);
+ poly([[cx+w,cy+TH/2],[cx,cy+TH/2+t],[cx,cy+TH/2+t+hp],[cx+w,cy+TH/2+hp]],c[2]);
+ poly([[cx,cy+TH/2-t],[cx+w,cy+TH/2],[cx,cy+TH/2+t],[cx-w,cy+TH/2]],c[0]);return{cx,cy:cy+TH/2,w,t}}
+function tree(x,y,h,i){const cx=sx(x,y)+((hash(x,y,i)-.5)*6|0),cy=sy(x,y,h)+TH/2+((hash(x,y,i+7)-.5)*3|0);
+ g.fillStyle='#6b4a2c';g.fillRect(cx,cy,1,3);const c=['#2f8f4a','#3aa357','#2a7d41'][(hash(x,y,i+3)*3)|0];
+ g.fillStyle=c;g.fillRect(cx-2,cy-4,5,4);g.fillRect(cx-1,cy-6,3,2);g.fillStyle='#5dc47a';g.fillRect(cx-1,cy-5,1,1)}
+const layers={1:true,2:true,3:true};
+function drawTile(x,y,time){const t=T[y][x],col=COL[t.type][(x+y)&1];
+ const nr=T[y][x+1]?T[y][x+1].h:0,nl=T[y+1]?T[y+1][x].h:0;
+ const dR=t.h-nr,dL=t.h-nl;
+ if(t.type!=='water'){if(dL>0)sides(x,y,t.h,SIDE[t.type][0],SIDE[t.type][1],0);// placeholder
+  const cx=sx(x,y),cy=sy(x,y,t.h);
+  if(dL>0)poly([[cx-TW/2,cy+TH/2],[cx,cy+TH],[cx,cy+TH+dL*HZ],[cx-TW/2,cy+TH/2+dL*HZ]],SIDE[t.type][0]);
+  if(dR>0)poly([[cx+TW/2,cy+TH/2],[cx,cy+TH],[cx,cy+TH+dR*HZ],[cx+TW/2,cy+TH/2+dR*HZ]],SIDE[t.type][1])}
+ diamond(x,y,t.h,col);
+ if(t.type==='water'&&((Math.floor(time/500)+x*3+y*5)%11===0)){const cx=sx(x,y),cy=sy(x,y,0);g.fillStyle='#bfe6fa';g.fillRect(cx-2,cy+TH/2,3,1)}
+ if(t.type==='road'&&(x+y)%2===0){const cx=sx(x,y),cy=sy(x,y,t.h);g.fillStyle='#e6e0d0';g.fillRect(cx,cy+TH/2,2,1)}
+ if(t.type==='grass'&&hash(x,y,2)>.7){const cx=sx(x,y),cy=sy(x,y,t.h);g.fillStyle='#93d46f';g.fillRect(cx+((hash(x,y,4)*8-4)|0),cy+TH/2,1,1)}}
+function drawBuilding(b,time){const t=T[b.y][b.x];let p=1;if(b.t0>0){p=Math.min(1,(time-b.t0)/500);p=1-Math.pow(1-p,3)}
+ const h=t.h;
+ if(b.type==='house'){const hp=Math.round(5*p);const o=box(b.x,b.y,h,hp,['#f1e6cf','#d9cdb2','#c4b99d']);
+  const ry=o.cy-hp*0+ -0;const rc=[['#d6553f','#b8432f'],['#3f6fc7','#335aa3'],['#4f9a55','#3e7f44']][(b.x+b.y)%3];
+  poly([[o.cx-o.w-1,o.cy-hp+TH/2*0+1+hp*0],[o.cx,o.cy-hp-5*p],[o.cx+o.w+1,o.cy-hp+1],[o.cx,o.cy-hp+o.t+2]].map(a=>[a[0],a[1]+hp*0-0]),rc[0]);
+  poly([[o.cx-o.w-1,o.cy-hp+1],[o.cx,o.cy-hp+o.t+2],[o.cx,o.cy-hp+o.t+4],[o.cx-o.w-1,o.cy-hp+3]],rc[1])}
+ else if(b.type==='tower'){const fl=Math.max(1,Math.round(b.floors*p)),hp=fl*3+2;
+  const o=box(b.x,b.y,h,hp,['#d8dde3','#b7bec8','#9ea6b2']);
+  g.fillStyle='#4a6a8c';for(let i=0;i<fl;i++){g.fillRect(o.cx-o.w+2,o.cy-hp+TH/2+3+i*3+ -TH/2+TH/2-(0)+ -0 -0 +0,2,1);g.fillRect(o.cx+o.w-4,o.cy-hp+TH/2+3+i*3+0 -TH/2+TH/2,2,1)}
+  if(b.floors>=8){g.fillStyle='#e8c34a';g.fillRect(o.cx-1,o.cy-hp-3,2,3)}}
+ else if(b.type==='farm'){diamond(b.x,b.y,h,'#a97d4e',.9);for(let i=-2;i<=2;i++){const cx=sx(b.x,b.y),cy=sy(b.x,b.y,h)+TH/2;g.fillStyle='#5aa83f';g.fillRect(cx+i*2-1,cy-1+Math.abs(i)*0,2,1);g.fillRect(cx+i*2,cy+1,2,1);g.fillRect(cx+i*2-2,cy+2,2,1)}}
+ else if(b.type==='tent'){const cx=sx(b.x,b.y),cy=sy(b.x,b.y,h)+TH/2+2;const s=p;poly([[cx-7,cy+2],[cx,cy-8*s],[cx+7,cy+2],[cx,cy+5]],'#d7c49a');poly([[cx-7,cy+2],[cx,cy+5],[cx,cy-8*s]],'#bda877');g.fillStyle='#6b4a2c';g.fillRect(cx,cy-12*s,1,5*s);g.fillStyle='#e0463a';g.fillRect(cx+1,cy-12*s,4,2)}}
+let hover=null,bt='house',t0=0;
+function frame(time){
+ g.imageSmoothingEnabled=false;
+ const sky=g.createLinearGradient(0,0,0,H);sky.addColorStop(0,'#8fd0f5');sky.addColorStop(1,'#d9f0fb');g.fillStyle=sky;g.fillRect(0,0,W,H);
+ // 먼 산 실루엣
+ g.fillStyle='#a8cbb5';g.beginPath();g.moveTo(0,120);for(let x=0;x<=W;x+=8)g.lineTo(x,100-30*Math.abs(Math.sin(x*.012))-12*Math.sin(x*.05));g.lineTo(W,160);g.lineTo(0,160);g.fill();
+ // 먼 구름
+ g.fillStyle='#fff';[[60,24],[250,16],[390,34]].forEach(([x,y])=>{x=(x+time*.003)%(W+60)-30;g.fillRect(x,y,26,4);g.fillRect(x+4,y-3,16,3)});
+ const items=[];
+ for(let s=0;s<2*N-1;s++)for(let y=0;y<N;y++){const x=s-y;if(x<0||x>=N)continue;
+  if(layers[1])drawTile(x,y,time);
+  if(layers[2]&&T[y][x].forest){const n=1+((hash(x,y,1)*2)|0);for(let i=0;i<n;i++)tree(x,y,T[y][x].h,i)}
+  if(layers[3]){const b=B.find(b=>b.x===x&&b.y===y);if(b)drawBuilding(b,time)}
+  if(hover&&hover.x===x&&hover.y===y){g.globalAlpha=.45;diamond(x,y,T[y][x].h,canBuild(x,y)?'#fff':'#e33');g.globalAlpha=1}
+ }
+ requestAnimationFrame(frame)}
+requestAnimationFrame(frame);
+// ---------- 입력 ----------
+function pick(e){const r=cv.getBoundingClientRect(),mx=(e.clientX-r.left)*W/r.width,my=(e.clientY-r.top)*H/r.height;
+ const dx=mx-OX,dy=my-OY+HZ*1-TH/2;const a=dx/(TW/2),b=dy/(TH/2);const x=Math.round((a+b)/2),y=Math.round((b-a)/2);
+ return(x>=0&&y>=0&&x<N&&y<N)?{x,y}:null}
+cv.addEventListener('mousemove',e=>hover=pick(e));cv.addEventListener('mouseleave',()=>hover=null);
+const names=['민수','지은','현우','서연','도윤','하준'],gu=['마포구','종로구','강서구','성동구','송파구','관악구'];
+cv.addEventListener('click',e=>{const p=pick(e);if(!p)return;const lab={house:'집',tower:'고층',farm:'텃밭',tent:'병영'}[bt];
+ const fl=bt==='tower'?4+((Math.random()*6)|0):bt==='house'?2:1;
+ const ok=add(p.x,p.y,bt,fl,'신청');const who=names[(Math.random()*6)|0],area=gu[(Math.random()*6)|0];
+ document.getElementById('log').textContent=ok?`댓글 "${area} / ${who} / ${lab}" → 건물 1개 생성 (데이터 한 줄 추가)`:'여기는 지을 수 없는 칸이에요 (물·산·도로·이미 건물).'});
+document.querySelectorAll('.bt').forEach(b=>b.onclick=()=>{document.querySelectorAll('.bt').forEach(x=>x.classList.remove('on'));b.classList.add('on');bt=b.dataset.t});
+[1,2,3].forEach(i=>document.getElementById('l'+i).onclick=e=>{layers[i]=!layers[i];e.target.classList.toggle('on',layers[i])});
+</script></body></html>
