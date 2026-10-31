@@ -1,6 +1,9 @@
 // 지형 특징(한강·주요 산) 그리기. app.js의 drawBase()가 drawTerrainFeatures(ctx, info)를 부른다.
 // 데이터: data/terrain.json (한강 중심선은 구 경계에서 추출, 산은 주요 봉우리 위치만; tools/build_terrain.py)
 let TERRAIN=null;
+// 가까이 확대하면 구 단위 추상 블록 대신 4단계(폐허→임시 정착→복구→번영) 도시 타일이 보인다. 단계는 소부족 수(지금은 가짜 값)로 정한다.
+const TILES=[1,2,3,4].map(i=>{const im=new Image();im.onload=()=>window.markBaseDirty&&markBaseDirty();im.src='assets/tiles/downtown_'+i+'.png';return im});
+const stageOf=code=>Math.min(3,Math.floor((((typeof hash==='function'?hash(code):0)*9973.7)%1)*4)); // 임시: 구마다 단계를 달리 보이게 하는 가짜 값(나중에 실제 소부족 수로 교체)
 fetch('data/terrain.json').then(r=>r.json()).then(t=>{TERRAIN=t;if(window.markBaseDirty)markBaseDirty()}).catch(()=>{});
 function drawTerrainFeatures(c,{S,OX,OY,DPR,quick,sel,view,OPEN,SIDO,SGG}){
   if(!TERRAIN)return;
@@ -11,7 +14,7 @@ function drawTerrainFeatures(c,{S,OX,OY,DPR,quick,sel,view,OPEN,SIDO,SGG}){
   c.clip(clip,'evenodd');
   // 바탕: 숲·논밭 그림을 옅게 덮어 '도시 근교' 느낌으로 맞추고, 평지에는 시가지 블록을 깐다.
   
-  if(sel==='11'||sel==='41')urban(c,pj,SGG.filter(g=>g.sido===sel),sel==='11'?.42:.8,S,OX,OY);
+  if(sel==='11'||sel==='41')urban(c,pj,SGG.filter(g=>g.sido===sel),sel==='11'?.42:.8,S,OX,OY,S/DPR>=18);
   // 산: 능선을 따라 작은 봉우리를 겹쳐 놓는다(왼쪽 면은 밝게, 오른쪽 면은 어둡게). 위치는 고정 시드라 항상 같다.
   const mounds=[];
   TERRAIN.peaks.forEach(([n,lo,la,r,deg,h],pi)=>{
@@ -42,7 +45,8 @@ function drawTerrainFeatures(c,{S,OX,OY,DPR,quick,sel,view,OPEN,SIDO,SGG}){
 }
 
 // 시가지: 구마다 밀도를 달리해 회색·베이지 건물 블록을 격자(약간 기울임)로 깐다. 강·산 가까이는 비운다.
-function urban(c,pj,gus,step,S,OX,OY){
+function urban(c,pj,gus,step,S,OX,OY,close){
+  if(close)return tileCity(c,pj,gus,S,OX,OY);
   const rv=TERRAIN.river.map(pj),pk=TERRAIN.peaks.map(([n,lo,la,r])=>[...pj([lo,la]),r*1.1]);
   const sc=pj([126.978,37.566]);
   const dseg=(x,y)=>{let m=1e9;for(let i=0;i<rv.length-1;i++){const[a,b]=rv[i],[p,q]=rv[i+1],dx=p-a,dy=q-b,t=Math.max(0,Math.min(1,((x-a)*dx+(y-b)*dy)/(dx*dx+dy*dy||1))),d=Math.hypot(x-a-dx*t,y-b-dy*t);if(d<m)m=d}return m};
@@ -64,4 +68,24 @@ function urban(c,pj,gus,step,S,OX,OY){
       c.fillStyle=cols[(i*7+j*3)&3];c.fillRect(px-w/2,py-h/2,w,h);
     }
   });
+}
+
+// 확대 상태: 보이는 영역만, 구마다 단계 타일을 엇갈린 격자로 깔고 아래쪽부터 그린다.
+function tileCity(c,pj,gus,S,OX,OY){
+  const W=c.canvas.width,H=c.canvas.height,vx0=-OX/S-4,vx1=(W-OX)/S+4,vy0=-OY/S-4,vy1=(H-OY)/S+4;
+  const rv=TERRAIN.river.map(pj),pk=TERRAIN.peaks.map(([n,lo,la,r])=>[...pj([lo,la]),r*1.1]);
+  const dseg=(x,y)=>{let m=1e9;for(let i=0;i<rv.length-1;i++){const[a,b]=rv[i],[p,q]=rv[i+1],dx=p-a,dy=q-b,t=Math.max(0,Math.min(1,((x-a)*dx+(y-b)*dy)/(dx*dx+dy*dy||1))),d=Math.hypot(x-a-dx*t,y-b-dy*t);if(d<m)m=d}return m};
+  const sw=4.1,sh=2.05,list=[];
+  gus.forEach(g=>{
+    const st=stageOf(g.code);
+    for(let j=Math.floor(vy0/sh);j<=vy1/sh;j++)for(let i=Math.floor(vx0/sw);i<=vx1/sw;i++){
+      const x=(i+(j&1?.5:0))*sw,y=j*sh;
+      if(x<vx0||x>vx1||y<vy0||y>vy1)continue;
+      if(!c.isPointInPath(g.p,x*S+OX,y*S+OY))continue;
+      if(dseg(x,y)<1.3)continue;
+      if(pk.some(([mx,my,mr])=>Math.hypot((x-mx)/1.6,y-my)<mr*.8))continue;
+      list.push([x,y,st]);
+    }
+  });
+  list.sort((a,b)=>a[1]-b[1]).forEach(([x,y,st])=>{const im=TILES[st];if(!im.complete||!im.naturalWidth)return;const w=sw*1.25,h=w*im.naturalHeight/im.naturalWidth;c.drawImage(im,x-w/2,y-h*.72,w,h)});
 }

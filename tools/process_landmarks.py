@@ -38,6 +38,7 @@ def main():
     ap.add_argument("--maxh", type=int, default=640)
     ap.add_argument("--maxw", type=int, default=900)
     ap.add_argument("--port", type=int, default=9341)
+    ap.add_argument("--quad", action="store_true", help="2x2 시트를 네 장(<이름>_1~4.png)으로 자른다")
     ap.add_argument("names", nargs="*")
     a = ap.parse_args()
 
@@ -64,7 +65,7 @@ def main():
             tab = cdp_http(f"http://127.0.0.1:{a.port}/json/new?about:blank", "PUT")
             ws = WS(tab["webSocketDebuggerUrl"])
             ws.call("Page.enable")
-            url = f"{base}/tools/landmark_key.html?src=/raw/{urllib.parse.quote(n)}.png&maxh={a.maxh}&maxw={a.maxw}"
+            url = f"{base}/tools/landmark_key.html?src=/raw/{urllib.parse.quote(n)}.png&maxh={a.maxh}&maxw={a.maxw}{'&quad=1' if a.quad else ''}"
             ws.call("Page.navigate", {"url": url})
             deadline = time.time() + 90
             while time.time() < deadline:
@@ -76,6 +77,13 @@ def main():
             out = json.loads(res["result"]["value"])
             if "error" in out:
                 print(n, "실패:", out["error"])
+                continue
+            if a.quad:
+                for i, durl in enumerate(out["quad"], 1):
+                    pth = os.path.join(a.out, f"{n}_{i}.png")
+                    with open(pth, "wb") as f:
+                        f.write(base64.b64decode(durl.split(",", 1)[1]))
+                    print(f"{n}_{i}.png  {out['sizes'][i-1][0]}x{out['sizes'][i-1][1]}  {os.path.getsize(pth)//1024}KB")
                 continue
             for state in ("intact", "ruined"):
                 data = out[state].split(",", 1)[1]

@@ -158,6 +158,16 @@ function resize(c) {
   try {
     const img = await load(SRC);
     const { W, H, data } = key(img);
+    if (params.get('quad')) { // 2x2 시트: 가운데 십자로 네 칸을 나눠 각각 트리밍
+      const hx = W >> 1, hy = H >> 1, boxes = [[0, hx, 0, hy], [hx, W, 0, hy], [0, hx, hy, H], [hx, W, hy, H]];
+      const outs = boxes.map(([x0, x1, y0, y1]) => {
+        const sub = new Uint8ClampedArray(data); // 해당 칸 밖은 투명 처리
+        for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (x < x0 || x >= x1 || y < y0 || y >= y1) sub[(y * W + x) * 4 + 3] = 0;
+        return resize(crop(W, H, sub, x0, x1));
+      });
+      window.__out = { src: SRC, size: [W, H], quad: outs.map(c => c.toDataURL('image/png')), sizes: outs.map(c => [c.width, c.height]) };
+      window.__done = true; return;
+    }
     const sp = findSplit(W, H, data);
     const left = resize(crop(W, H, data, 0, sp.x)), right = resize(crop(W, H, data, sp.x, W));
     window.__out = {
