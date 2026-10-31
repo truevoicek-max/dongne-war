@@ -20,13 +20,19 @@ function proceduralTile(){const n=256,c=document.createElement('canvas');c.width
   const v=(x,y,s)=>{const f=(a,b)=>{let h=(a*374761393+b*668265263+s*1442695041)|0;h=(h^(h>>>13))*1274126177|0;return((h^(h>>>16))>>>0)/4294967295};
     const xi=Math.floor(x),yi=Math.floor(y),xf=x-xi,yf=y-yi,u=xf*xf*(3-2*xf),w=yf*yf*(3-2*yf);return f(xi,yi)*(1-u)*(1-w)+f(xi+1,yi)*u*(1-w)+f(xi,yi+1)*(1-u)*w+f(xi+1,yi+1)*u*w};
   const im=g.createImageData(n,n);
-  for(let y=0;y<n;y++)for(let x=0;x<n;x++){const a=v(x/28,y/28,1)*.6+v(x/9,y/9,2)*.3+v(x/3,y/3,3)*.1;
-    const c1=[150,214,120],c2=[104,184,100],t=Math.min(1,Math.max(0,(a-.3)*2));const i=(y*n+x)*4;
+  // 초원(밝은 연두) ↔ 숲(짙은 청록) 두 색을 큰 덩어리 노이즈로 섞는다. 돌담·논밭 같은 구체적 무늬는 없다.
+  for(let y=0;y<n;y++)for(let x=0;x<n;x++){const a=v(x/70,y/70,1)*.55+v(x/24,y/24,2)*.3+v(x/7,y/7,3)*.15;
+    const c1=[176,222,128],c2=[74,150,96],t=Math.min(1,Math.max(0,(a-.38)*3));const i=(y*n+x)*4;
     im.data[i]=c1[0]+(c2[0]-c1[0])*t;im.data[i+1]=c1[1]+(c2[1]-c1[1])*t;im.data[i+2]=c1[2]+(c2[2]-c1[2])*t;im.data[i+3]=255}
-  g.putImageData(im,0,0);return c}
+  g.putImageData(im,0,0);
+  for(let i=0;i<46;i++){const x=v(i,1,9)*n,y=v(i,2,8)*n,r=5+v(i,3,7)*6;
+    g.fillStyle='rgba(30,90,60,.22)';g.beginPath();g.ellipse(x+2,y+3,r,r*.7,0,0,7);g.fill();
+    g.fillStyle='rgba(70,140,84,.85)';g.beginPath();g.arc(x,y,r,0,7);g.fill();
+    g.fillStyle='rgba(190,230,140,.5)';g.beginPath();g.arc(x-r*.3,y-r*.35,r*.55,0,7);g.fill()}
+  return c}
 function mirrorTile(img){const w=img.width,h=img.height,c=document.createElement('canvas');c.width=w*2;c.height=h*2;const g=c.getContext('2d');
   g.drawImage(img,0,0);g.save();g.scale(-1,1);g.drawImage(img,-w*2,0);g.restore();g.save();g.scale(1,-1);g.drawImage(img,0,-h*2);g.restore();g.save();g.scale(-1,-1);g.drawImage(img,-w*2,-h*2);g.restore();return c}
-function loadTexture(){return new Promise(res=>{const im=new Image();im.onload=()=>(im.decode?im.decode().catch(()=>{}):Promise.resolve()).then(()=>res(im));im.onerror=()=>res(proceduralTile());im.src='assets/terrain.jpg'})}
+function loadTexture(){return Promise.resolve(proceduralTile());return new Promise(res=>{const im=new Image();im.onload=()=>(im.decode?im.decode().catch(()=>{}):Promise.resolve()).then(()=>res(im));im.onerror=()=>res(proceduralTile());im.src='assets/terrain.jpg'})}
 
 Promise.all([fetch('data/sido.json').then(r=>r.json()),fetch('data/sgg.json').then(r=>r.json()),loadTexture(),new Promise(r=>{const i=new Image();i.onload=()=>r(i);i.onerror=()=>r(null);i.src='assets/ai.jpg'})]).then(([a,b,t,ai])=>{SIDO=a;SGG=b;TEX=mirrorTile(t);TEXAI=ai?mirrorTile(ai):null;init()});
 
@@ -57,7 +63,22 @@ const wx=(x)=>(x*S+OX)/DPR, wy=(y)=>(y*S+OY)/DPR;
 const bc=document.createElement('canvas'),bctx=bc.getContext('2d',{alpha:false});
 let baseDirty=true,PAT=null,PATAI=null,lastFull=0,miniDirty=true;
 window.markBaseDirty=()=>{baseDirty=true};
-const mkPat=()=>{const p=bctx.createPattern(TEX,'repeat');p.setTransform(new DOMMatrix().scale(110/TEX.width));return p};
+let LANDC=null;
+// 반복 타일 없이 지도 전체(월드 좌표)에 한 장으로 깔리는 땅 바탕: 큰 덩어리 노이즈 + 한 번만 뿌린 나무 무리
+function worldLand(){const K=2,W=Math.round(base.w*K)+80,H=Math.round(base.h*K)+80,c=document.createElement('canvas');c.width=W;c.height=H;const g=c.getContext('2d');
+  const hs=(a,b,s)=>{let h=(a*374761393+b*668265263+s*1442695041)|0;h=(h^(h>>>13))*1274126177|0;return((h^(h>>>16))>>>0)/4294967295};
+  const v=(x,y,s)=>{const xi=Math.floor(x),yi=Math.floor(y),xf=x-xi,yf=y-yi,u=xf*xf*(3-2*xf),w=yf*yf*(3-2*yf);return hs(xi,yi,s)*(1-u)*(1-w)+hs(xi+1,yi,s)*u*(1-w)+hs(xi,yi+1,s)*(1-u)*w+hs(xi+1,yi+1,s)*u*w};
+  const im=g.createImageData(W,H),d=im.data;
+  for(let y=0;y<H;y++)for(let x=0;x<W;x++){const a=v(x/260,y/260,1)*.5+v(x/90,y/90,2)*.3+v(x/28,y/28,3)*.15+v(x/8,y/8,4)*.05;
+    const t=Math.min(1,Math.max(0,(a-.36)*2.6)),i=(y*W+x)*4;
+    d[i]=184+(88-184)*t;d[i+1]=224+(160-224)*t;d[i+2]=138+(102-138)*t;d[i+3]=255}
+  g.putImageData(im,0,0);
+  for(let i=0;i<5200;i++){const x=hs(i,1,5)*W,y=hs(i,2,6)*H,r=3+hs(i,3,7)*5,m=v(x/90,y/90,2);if(m<.42&&hs(i,4,8)<.8)continue;
+    g.fillStyle='rgba(40,100,66,.20)';g.beginPath();g.arc(x+1.5,y+2,r,0,7);g.fill();
+    g.fillStyle='rgba(78,148,90,.8)';g.beginPath();g.arc(x,y,r,0,7);g.fill();
+    g.fillStyle='rgba(200,235,150,.45)';g.beginPath();g.arc(x-r*.3,y-r*.35,r*.5,0,7);g.fill()}
+  return{c,K,ox:base.x-40/K,oy:base.y-40/K}}
+const mkPat=()=>{if(!LANDC)LANDC=worldLand();const p=bctx.createPattern(LANDC.c,'no-repeat');p.setTransform(new DOMMatrix().translate(LANDC.ox,LANDC.oy).scale(1/LANDC.K));return p};
 function drawBase(quick){ // quick=true: 이동 애니메이션 중에는 비싼 블러 그림자를 생략
   if(bc.width!==cv.width||bc.height!==cv.height){bc.width=cv.width;bc.height=cv.height}
   const c=bctx,W=bc.width,H=bc.height;if(!PAT){PAT=mkPat();if(TEXAI){PATAI=bctx.createPattern(TEXAI,'repeat');PATAI.setTransform(new DOMMatrix().scale(150/TEXAI.width))}}

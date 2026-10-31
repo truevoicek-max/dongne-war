@@ -10,7 +10,7 @@ function drawTerrainFeatures(c,{S,OX,OY,DPR,quick,sel,view,OPEN,SIDO,SGG}){
   const clip=new Path2D();open.forEach(s=>clip.addPath(s.p));
   c.clip(clip,'evenodd');
   // 바탕: 숲·논밭 그림을 옅게 덮어 '도시 근교' 느낌으로 맞추고, 평지에는 시가지 블록을 깐다.
-  c.fillStyle=sel==='11'?'rgba(196,207,170,.9)':'rgba(206,218,182,.6)';c.fill(clip);
+  
   if(sel==='11'||sel==='41')urban(c,pj,SGG.filter(g=>g.sido===sel),sel==='11'?.42:.8,S,OX,OY);
   // 산: 능선을 따라 작은 봉우리를 겹쳐 놓는다(왼쪽 면은 밝게, 오른쪽 면은 어둡게). 위치는 고정 시드라 항상 같다.
   const mounds=[];
