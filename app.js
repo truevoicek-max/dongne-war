@@ -56,6 +56,7 @@ const wx=(x)=>(x*S+OX)/DPR, wy=(y)=>(y*S+OY)/DPR;
 // ---- 성능: 정적 층은 오프스크린에 캐시하고, 움직이는 것만 매 프레임 덧그린다 ----
 const bc=document.createElement('canvas'),bctx=bc.getContext('2d',{alpha:false});
 let baseDirty=true,PAT=null,PATAI=null,lastFull=0,miniDirty=true;
+window.markBaseDirty=()=>{baseDirty=true};
 const mkPat=()=>{const p=bctx.createPattern(TEX,'repeat');p.setTransform(new DOMMatrix().scale(110/TEX.width));return p};
 function drawBase(quick){ // quick=true: 이동 애니메이션 중에는 비싼 블러 그림자를 생략
   if(bc.width!==cv.width||bc.height!==cv.height){bc.width=cv.width;bc.height=cv.height}
@@ -76,6 +77,8 @@ function drawBase(quick){ // quick=true: 이동 애니메이션 중에는 비싼
     c.fillStyle=PAT;c.fill(g.p,'evenodd');
     c.save();c.clip(g.p,'evenodd');c.strokeStyle='rgba(255,255,255,.45)';c.lineWidth=5*DPR/S;c.stroke(g.p);c.restore();
     c.strokeStyle='rgba(255,255,255,.95)';c.lineWidth=lw*.9;c.stroke(g.p)})}
+  // 지형 특징(한강·산 등)은 terrain.js가 그린다
+  if(window.drawTerrainFeatures){c.save();c.setTransform(S,0,0,S,OX,OY);drawTerrainFeatures(c,{S,OX,OY,DPR,quick,sel,view,OPEN,SIDO,SGG});c.restore()}
   baseDirty=false;miniDirty=true;
 }
 function paint(t){
@@ -136,6 +139,7 @@ function tick(t){
   if(anim)anim();
   stepControls();
   paint(t);if(!anim)layout();
+  if(window.updateLandmarks)updateLandmarks({wx,wy,S,DPR,sel,view,vb,home,anim:!!anim,t});   // 랜드마크 이미지(landmarks.js)
   zoomLabel();
   requestAnimationFrame(tick)}
 // 이동이 끝나면 고품질(블러 그림자 포함) 정적 층으로 한 번 다시 그린다
