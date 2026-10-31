@@ -75,7 +75,7 @@ function tileCity(c,pj,gus,S,OX,OY){
   const W=c.canvas.width,H=c.canvas.height,vx0=-OX/S-4,vx1=(W-OX)/S+4,vy0=-OY/S-4,vy1=(H-OY)/S+4;
   const rv=TERRAIN.river.map(pj),pk=TERRAIN.peaks.map(([n,lo,la,r])=>[...pj([lo,la]),r*1.1]);
   const dseg=(x,y)=>{let m=1e9;for(let i=0;i<rv.length-1;i++){const[a,b]=rv[i],[p,q]=rv[i+1],dx=p-a,dy=q-b,t=Math.max(0,Math.min(1,((x-a)*dx+(y-b)*dy)/(dx*dx+dy*dy||1))),d=Math.hypot(x-a-dx*t,y-b-dy*t);if(d<m)m=d}return m};
-  const sw=4.1,sh=2.05,list=[];
+  const sw=5,sh=2.5,list=[];
   gus.forEach(g=>{
     const st=stageOf(g.code);
     for(let j=Math.floor(vy0/sh);j<=vy1/sh;j++)for(let i=Math.floor(vx0/sw);i<=vx1/sw;i++){
@@ -84,8 +84,9 @@ function tileCity(c,pj,gus,S,OX,OY){
       if(!c.isPointInPath(g.p,x*S+OX,y*S+OY))continue;
       if(dseg(x,y)<1.3)continue;
       if(pk.some(([mx,my,mr])=>Math.hypot((x-mx)/1.6,y-my)<mr*.8))continue;
-      list.push([x,y,st]);
+      const rr=Math.sin(i*12.9898+j*78.233)*43758.5453,r0=rr-Math.floor(rr);if(r0<.35)continue; // 듬성듬성: 절반 이상은 비워 초록 땅이 보이게
+      list.push([x+(r0-.75)*1.6,y+(Math.sin(i*5.3+j*9.1)*.8),st]);
     }
   });
-  list.sort((a,b)=>a[1]-b[1]).forEach(([x,y,st])=>{const im=TILES[st];if(!im.complete||!im.naturalWidth)return;const w=sw*1.25,h=w*im.naturalHeight/im.naturalWidth;c.drawImage(im,x-w/2,y-h*.72,w,h)});
+  list.sort((a,b)=>a[1]-b[1]).forEach(([x,y,st])=>{const im=TILES[st];if(!im.complete||!im.naturalWidth)return;const w=sw*.95,h=w*im.naturalHeight/im.naturalWidth;c.drawImage(im,x-w/2,y-h*.72,w,h)});
 }
