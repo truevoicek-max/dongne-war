@@ -3,6 +3,10 @@
 let TERRAIN=null;
 // 가까이 확대하면 구 단위 추상 블록 대신 4단계(폐허→임시 정착→복구→번영) 도시 타일이 보인다. 단계는 소부족 수(지금은 가짜 값)로 정한다.
 const TILES=[1,2,3,4].map(i=>{const im=new Image();im.onload=()=>window.markBaseDirty&&markBaseDirty();im.src='assets/tiles/downtown_'+i+'.png';return im});
+// 단계별 항공뷰 지붕 에셋(ChatGPT 생성 시트를 잘라 투명 PNG로 만든 것): assets/aerial/<이름>_<번호>.png. 없는 단계는 코드로 그린 대체 모양을 쓴다.
+const AER={0:[],1:[],2:[],3:[]};
+[[0,'aerial_ruins',9],[1,'aerial_tents',9],[2,'aerial_restored',9],[3,'aerial_rich',9]].forEach(([st,nm,n])=>{for(let i=1;i<=n;i++){const im=new Image();im.onload=()=>window.markBaseDirty&&markBaseDirty();im.onerror=()=>{};im.src='assets/aerial/'+nm+'_'+i+'.png';AER[st].push(im)}});
+const aerReady=st=>AER[st].filter(im=>im.complete&&im.naturalWidth);
 const stageOf=code=>((parseInt(code,10)*2654435761)>>>16)%4; // 임시: 구마다 단계를 달리 보이게 하는 가짜 값(나중에 실제 소부족 수로 교체)
 fetch('data/terrain.json').then(r=>r.json()).then(t=>{TERRAIN=t;if(window.markBaseDirty)markBaseDirty()}).catch(()=>{});
 function drawTerrainFeatures(c,{S,OX,OY,DPR,quick,sel,view,OPEN,SIDO,SGG}){
@@ -120,6 +124,7 @@ function aerialCity(c,pj,gus,S,OX,OY){
       const w=B-.26,o=-w/2,add=(it)=>items.push({cx:x,cy:y,...it});
       if(k){const n=k===2?7:3;for(let q=0;q<n;q++)add({t:'tree',x:o+rn(i,j,10+q)*w,y:o+rn(i,j,20+q)*w,r:.1+.09*rn(i,j,30+q),f:k===2});return}
       const R=(q,n)=>rn(i,j,q+n);
+      const A=aerReady(st);if(A.length){add({t:'img',im:A[Math.floor(rn(i,j,77+seed)*A.length)],w:B-.06});return}
       if(st===0){ // 폐허
         const nr=ty==='old'?5:3;for(let q=0;q<nr;q++){const rw=(.14+.16*R(q,0))*B/.7,rh=(.12+.16*R(q,4))*B/.7;add({t:'rect',x:o+R(q,8)*(w-rw),y:o+R(q,12)*(w-rh),w:rw,h:rh,c:['#5d6063','#6c7073','#4f5356'][q%3],sh:.05})}
         if(R(0,40)<.5)add({t:'moss',x:o+R(0,41)*w,y:o+R(0,42)*w,r:.13});
@@ -142,7 +147,8 @@ function aerialCity(c,pj,gus,S,OX,OY){
     items.forEach(o=>{if(o.t==='rect'&&o.sh){place(o,()=>{c.fillStyle='rgba(20,30,40,.30)';const d=o.sh;c.beginPath();c.moveTo(o.x+o.w,o.y);c.lineTo(o.x+o.w+d,o.y+d);c.lineTo(o.x+o.w+d,o.y+o.h+d);c.lineTo(o.x+d,o.y+o.h+d);c.lineTo(o.x,o.y+o.h);c.lineTo(o.x+o.w,o.y+o.h);c.closePath();c.fill()})}
       else if(o.t==='tree'){place(o,()=>{c.fillStyle='rgba(20,60,30,.28)';c.beginPath();c.arc(o.x+.05,o.y+.06,o.r,0,7);c.fill()})}});
     items.forEach(o=>{place(o,()=>{
-      if(o.t==='rect'){c.fillStyle=o.c;c.fillRect(o.x,o.y,o.w,o.h);c.fillStyle='rgba(255,255,255,.28)';c.fillRect(o.x,o.y,o.w,Math.min(.03,o.h*.2));if(o.glass){c.fillStyle='rgba(255,255,255,.35)';c.fillRect(o.x+o.w*.12,o.y+o.h*.12,o.w*.3,o.h*.3)}}
+      if(o.t==='img'){const im=o.im,s=Math.min(o.w/im.naturalWidth,o.w/im.naturalHeight);c.drawImage(im,-im.naturalWidth*s/2,-im.naturalHeight*s/2,im.naturalWidth*s,im.naturalHeight*s)}
+      else if(o.t==='rect'){c.fillStyle=o.c;c.fillRect(o.x,o.y,o.w,o.h);c.fillStyle='rgba(255,255,255,.28)';c.fillRect(o.x,o.y,o.w,Math.min(.03,o.h*.2));if(o.glass){c.fillStyle='rgba(255,255,255,.35)';c.fillRect(o.x+o.w*.12,o.y+o.h*.12,o.w*.3,o.h*.3)}}
       else if(o.t==='tree'){c.fillStyle=o.f?'#3f7f40':'#5aa24d';c.beginPath();c.arc(o.x,o.y,o.r,0,7);c.fill();c.fillStyle='rgba(190,230,140,.55)';c.beginPath();c.arc(o.x-o.r*.3,o.y-o.r*.3,o.r*.5,0,7);c.fill()}
       else if(o.t==='moss'){c.fillStyle='rgba(110,160,80,.65)';c.beginPath();c.arc(o.x,o.y,o.r,0,7);c.fill()}
       else if(o.t==='circ'){c.strokeStyle='rgba(90,220,255,.8)';c.lineWidth=.025;c.beginPath();c.moveTo(o.x,o.y);c.lineTo(o.x+o.w*.5,o.y);c.lineTo(o.x+o.w*.5,o.y+.18);c.lineTo(o.x+o.w,o.y+.18);c.stroke()}

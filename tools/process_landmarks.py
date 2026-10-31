@@ -38,7 +38,8 @@ def main():
     ap.add_argument("--maxh", type=int, default=640)
     ap.add_argument("--maxw", type=int, default=900)
     ap.add_argument("--port", type=int, default=9341)
-    ap.add_argument("--quad", action="store_true", help="2x2 시트를 네 장(<이름>_1~4.png)으로 자른다")
+    ap.add_argument("--quad", action="store_true", help="NxN 시트를 칸마다 한 장(<이름>_1~.png)으로 자른다")
+    ap.add_argument("--grid", type=int, default=2, help="--quad일 때 한 변의 칸 수(기본 2)")
     ap.add_argument("names", nargs="*")
     a = ap.parse_args()
 
@@ -65,7 +66,7 @@ def main():
             tab = cdp_http(f"http://127.0.0.1:{a.port}/json/new?about:blank", "PUT")
             ws = WS(tab["webSocketDebuggerUrl"])
             ws.call("Page.enable")
-            url = f"{base}/tools/landmark_key.html?src=/raw/{urllib.parse.quote(n)}.png&maxh={a.maxh}&maxw={a.maxw}{'&quad=1' if a.quad else ''}"
+            url = f"{base}/tools/landmark_key.html?src=/raw/{urllib.parse.quote(n)}.png&maxh={a.maxh}&maxw={a.maxw}{('&quad=1&grid=%d' % a.grid) if a.quad else ''}"
             ws.call("Page.navigate", {"url": url})
             deadline = time.time() + 90
             while time.time() < deadline:

@@ -159,7 +159,8 @@ function resize(c) {
     const img = await load(SRC);
     const { W, H, data } = key(img);
     if (params.get('quad')) { // 2x2 시트: 가운데 십자로 네 칸을 나눠 각각 트리밍
-      const hx = W >> 1, hy = H >> 1, boxes = [[0, hx, 0, hy], [hx, W, 0, hy], [0, hx, hy, H], [hx, W, hy, H]];
+      const N = +(params.get('grid') || 2), boxes = [];
+      for (let r = 0; r < N; r++) for (let q = 0; q < N; q++) boxes.push([Math.round(W * q / N), Math.round(W * (q + 1) / N), Math.round(H * r / N), Math.round(H * (r + 1) / N)]);
       const outs = boxes.map(([x0, x1, y0, y1]) => {
         const sub = new Uint8ClampedArray(data); // 해당 칸 밖은 투명 처리
         for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (x < x0 || x >= x1 || y < y0 || y >= y1) sub[(y * W + x) * 4 + 3] = 0;
